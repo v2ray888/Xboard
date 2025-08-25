@@ -1,7 +1,5 @@
-# 使用原项目指定的基础镜像
 FROM phpswoole/swoole:php8.2-alpine
 
-# 安装扩展安装工具
 COPY --from=mlocati/php-extension-installer /usr/bin/install-php-extensions /usr/local/bin/
 
 # 安装系统依赖和PHP扩展
@@ -15,25 +13,37 @@ RUN CFLAGS="-O0" install-php-extensions pcntl && \
 # 设置工作目录
 WORKDIR /www
 
-# ！！！关键修改：直接复制当前构建上下文的所有代码（由Koyeb自动拉取）
+# 复制代码
 COPY . .
 
 # 复制Supervisor配置
 COPY .docker/supervisor/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
-# 安装Composer依赖并执行项目初始化
-RUN composer install --no-cache --no-dev --optimize-autoloader \
-    && php artisan storage:link \
-    && chown -R www:www /www \
-    && chmod -R 775 /www
+# 安装Composer依赖
+RUN composer install --no-cache --no-dev --optimize-autoloader
 
-# 设置环境变量（这些可以在Koyeb控制台覆盖）
+# 调试：检查Swoole扩展
+RUN echo "=== 检查Swoole扩展 ===" && \
+    php -m | grep swoole && \
+    php --ri swoole
+
+# 设置存储目录权限
+RUN mkdir -p storage/framework/sessions storage/framework/views storage/framework/cache && \
+    chown -R www:www /www && \
+    chmod -R 775 storage bootstrap/cache
+
+# 设置环境变量
 ENV ENABLE_WEB=true \
-    ENABLE_HORIZON=true \
+    ENABLE_HORIZON=false \
     ENABLE_REDIS=false
 
-# 暴露应用程序端口
+# 暴露端口
 EXPOSE 7001
 
-# 启动应用
-CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
+# 使用调试启动命令
+CMD ["sh", "-c", "echo '=== 启动调试信息 ===' && \
+    php -m && \
+    echo 'Swoole 状态:' && \
+    php --ri swoole 2>&1 || echo 'Swoole 扩展未加载' && \
+    echo '=== 尝试启动应用 ===' && \
+    /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf"]
