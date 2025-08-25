@@ -41,9 +41,9 @@ ENV ENABLE_WEB=true \
 EXPOSE 7001
 
 # 使用调试启动命令
-CMD ["sh", "-c", "echo '=== 启动调试信息 ===' && \
-    php -m && \
-    echo 'Swoole 状态:' && \
-    php --ri swoole 2>&1 || echo 'Swoole 扩展未加载' && \
-    echo '=== 尝试启动应用 ===' && \
-    /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf"]
+# 替换最后的 CMD 行
+CMD ["sh", "-c", "echo '=== 启动应用并捕获输出 ===' && \
+    # 直接运行命令并捕获输出，而不是通过Supervisor
+    php artisan swoole:http start 2>&1 || \
+    (echo '=== 命令失败，显示最后50行日志 ===' && \
+    tail -n 50 /www/storage/logs/laravel.log 2>/dev/null || echo '无日志文件')"]
